@@ -101,6 +101,54 @@ test('prose outside tables keeps its line breaks with proseWrap "preserve"', asy
     assert.equal(await formatWithPlugin(markdown, { proseWrap: 'preserve' }), markdown);
 });
 
+test('markdownAlignedTableMaxWidth below printWidth makes a table that fits in printWidth compact', async () => {
+    const table = buildTableWithRowWidth(PRINT_WIDTH - 10);
+
+    const output = await formatWithPlugin(table, { markdownAlignedTableMaxWidth: PRINT_WIDTH - 11 });
+
+    assert.equal(output.split('\n')[0], '| key | value |');
+});
+
+test('markdownAlignedTableMaxWidth above printWidth keeps a table wider than printWidth aligned', async () => {
+    const table = buildTableWithRowWidth(PRINT_WIDTH + 20);
+
+    const output = await formatWithPlugin(table, { markdownAlignedTableMaxWidth: PRINT_WIDTH + 20 });
+
+    assert.equal(output, await formatWithoutPlugin(table));
+});
+
+test('markdownAlignedTableMaxWidth 0 makes all tables compact', async () => {
+    const markdown = ['| Name | Role |', '|-|-|', '| Ada | Engineer |', ''].join('\n');
+
+    const output = await formatWithPlugin(markdown, { markdownAlignedTableMaxWidth: 0 });
+
+    assert.equal(output, ['| Name | Role |', '| --- | --- |', '| Ada | Engineer |', ''].join('\n'));
+});
+
+test('markdownCompactTables false gives the output of Prettier without the plugin', async () => {
+    const markdown = ['| Key | Value |', '|-|-|', `| a | ${'v'.repeat(PRINT_WIDTH)} |`, ''].join('\n');
+
+    const output = await formatWithPlugin(markdown, { markdownCompactTables: false });
+
+    assert.equal(output, await formatWithoutPlugin(markdown));
+});
+
+test('code blocks keep their formatting in a file with compact tables', async () => {
+    const markdown = [
+        '```js',
+        `const values = [${Array.from({ length: 12 }, (_, i) => i).join(', ')}];`,
+        '```',
+        '',
+        buildTableWithRowWidth(PRINT_WIDTH + 1),
+    ].join('\n');
+
+    const output = await formatWithPlugin(markdown);
+    const expectedCodeBlock = (await formatWithoutPlugin(markdown)).split('\n\n')[0];
+
+    assert.ok(output.startsWith(`${expectedCodeBlock}\n\n`));
+    assert.match(output, /^\| key \| value \|$/m);
+});
+
 test('the plugin formats MDX tables too', async () => {
     const markdown = ['| Key | Value |', '|-|-|', `| a | ${'v'.repeat(PRINT_WIDTH)} |`, ''].join('\n');
 

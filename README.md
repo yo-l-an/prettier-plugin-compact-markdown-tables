@@ -19,7 +19,7 @@ Aligned columns make small tables easy to read. In a wide table, the alignment a
 | proseWrap | Wraps prose |
 ```
 
-The plugin has no options. The column alignment markers (`:--`, `:-:`, `--:`) stay in the compact layout.
+The column alignment markers (`:--`, `:-:`, `--:`) stay in the compact layout.
 
 ## Installation
 
@@ -36,13 +36,35 @@ export default {
 
 Prettier 3 is necessary.
 
+## Options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `markdownAlignedTableMaxWidth` | `printWidth` | Maximum width of an aligned table. A wider table gets the compact layout. `0`: all tables get the compact layout. |
+| `markdownCompactTables` | `true` | `false` disables the plugin: all tables keep the aligned layout of Prettier. Use it to compare the two outputs, or to disable the plugin for some files with `overrides`. |
+
+```js
+// prettier.config.js
+export default {
+    plugins: ['prettier-plugin-compact-markdown-tables'],
+    markdownAlignedTableMaxWidth: 160,
+    overrides: [{ files: 'CHANGELOG.md', options: { markdownCompactTables: false } }],
+};
+```
+
+On the command line, the plugin must also be in `--plugin`, else Prettier does not know its options:
+
+```sh
+prettier --plugin prettier-plugin-compact-markdown-tables --no-markdown-compact-tables --check "**/*.md"
+```
+
+The width of a table is the width of one row of the aligned table, plus the indentation of the table (in a list or a block quote). All the rows of an aligned table have the same width.
+
 ## How it works
 
 Prettier already contains the two layouts. With `proseWrap: "never"`, it prints a table aligned when the table fits in `printWidth`, and compact when it does not. With the other `proseWrap` values, it always aligns tables.
 
-The plugin gives `proseWrap: "never"` to the table nodes only. The paragraphs, lists and other nodes keep the `proseWrap` value of your configuration. If your configuration already sets `proseWrap: "never"`, the plugin changes nothing.
-
-The width is that of the aligned table, plus its indentation (in a list or a block quote). All the rows of an aligned table have the same width.
+The plugin gets the two layouts of each table from the Markdown printer of Prettier, with `proseWrap: "never"` for the table nodes only. The paragraphs, lists and other nodes keep the `proseWrap` value of your configuration. Then the plugin prints the document one time with all tables aligned, to find the width of each table with its indentation, and keeps the aligned layout of the tables that are not too wide.
 
 ## Limits
 
