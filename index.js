@@ -12,40 +12,41 @@ const MARKER_PATTERN = new RegExp(`${MARKER_START}(\\d+)${MARKER_END}`);
 const IGNORE_COMMENT_TEXT = 'prettier-plugin-compact-markdown-tables-ignore';
 const IGNORE_HTML_COMMENT_PATTERN = new RegExp(`^<!--\\s*${IGNORE_COMMENT_TEXT}\\s*-->$`);
 
+const ALIGNED_LAYOUT = { padsCells: true, extendsDelimiters: true };
+
 /** Number of tables printed in each document, keyed by the root node. */
 const tableCountByRoot = new WeakMap();
 
+const COMPACT_CHOICES = [
+    { value: 'auto', description: 'Compact in the tables wider than markdownAlignedTableMaxWidth.' },
+    { value: 'always', description: 'Compact in all tables.' },
+    { value: 'never', description: 'Aligned in all tables.' },
+];
+
 /** @type {import('prettier').SupportOptions} */
 export const options = {
-    markdownCompactTables: {
-        type: 'boolean',
+    markdownCompactTablesTextCells: {
+        type: 'choice',
         category: 'Markdown',
-        default: true,
-        description: 'Print the Markdown tables that are too wide with the compact layout.',
+        default: 'auto',
+        description: 'Remove the padding that aligns the text cells of Markdown tables.',
+        choices: COMPACT_CHOICES,
+    },
+    markdownCompactTablesHeadingMarkers: {
+        type: 'choice',
+        category: 'Markdown',
+        default: 'auto',
+        description: 'Write the delimiter row under the header of Markdown tables with "---" in each column.',
+        choices: COMPACT_CHOICES,
     },
     markdownAlignedTableMaxWidth: {
         type: 'int',
         category: 'Markdown',
         range: { start: 0, end: Infinity, step: 1 },
         description:
-            'Maximum width of an aligned table, with its indentation. A wider table gets the compact layout. Default: printWidth. 0: all tables get the compact layout.',
+            'Maximum width of an aligned table, with its indentation, for the "auto" values. Default: printWidth. 0: all tables are too wide.',
     },
 };
-
-/**
- * Gets the two layouts of a table from the markdown printer. With `proseWrap: "never"`,
- * it prints `[breakParent, group(ifBreak(compactTable, alignedTable))]`.
- *
- * @returns {{ alignedTable: import('prettier').Doc, compactTable: import('prettier').Doc } | undefined}
- */
-function printTableLayouts(path, options, print, args) {
-    const tableDoc = markdownPrinter.print(path, { ...options, proseWrap: 'never' }, print, args);
-    const layouts = Array.isArray(tableDoc) ? tableDoc[1]?.contents : undefined;
-    if (layouts?.type !== doc.builders.ifBreak('').type) {
-        return undefined;
-    }
-    return { alignedTable: layouts.flatContents, compactTable: layouts.breakContents };
-}
 
 /**
  * Tells if the node is an ignore comment: `<!-- prettier-plugin-compact-markdown-tables-ignore -->`,
@@ -59,11 +60,69 @@ function isIgnoreComment(node) {
     return comment?.type === 'esComment' && comment.value.trim() === IGNORE_COMMENT_TEXT;
 }
 
+/** Prints the text of each cell of the table at the path, and measures the columns as Prettier does. */
+function readTable(path, options, print) {
+    const columnWidths = [];
+    const rows = path.map(
+        () =>
+            path.map(({ index }) => {
+                const text = doc.printer.printDocToString(print(), options).formatted;
+                const width = util.getStringWidth(text);
+                columnWidths[index] = Math.max(columnWidths[index] ?? 3, width);
+                return { text, width };
+            }, 'children'),
+        'children'
+    );
+    return { rows, columnWidths, columnAligns: path.node.align, isMdx: options.parser === 'mdx' };
+}
+
+/**
+ * Prints a table as the Markdown printer of Prettier does, with or without the padding of the cells
+ * and the full width of the delimiter row.
+ */
+function printTable(table, { padsCells, extendsDelimiters }) {
+    const { rows, columnWidths, columnAligns } = table;
+
+    const printRow = (row) =>
+        row.map(({ text, width }, columnIndex) => {
+            if (!padsCells) {
+                return text;
+            }
+            const spaceWidth = columnWidths[columnIndex] - width;
+            const columnAlign = columnAligns[columnIndex];
+            const startSpaceWidth =
+                columnAlign === 'right' ? spaceWidth : columnAlign === 'center' ? Math.floor(spaceWidth / 2) : 0;
+            return `${' '.repeat(startSpaceWidth)}${text}${' '.repeat(spaceWidth - startSpaceWidth)}`;
+        });
+
+    const delimiterRow = columnWidths.flatMap((columnWidth, columnIndex) => {
+        // Outside MDX, Prettier removes the delimiters of the columns that the header row does not have.
+        if (!table.isMdx && columnIndex >= rows[0].length) {
+            return [];
+        }
+        const columnAlign = columnAligns[columnIndex];
+        const start = columnAlign === 'center' || columnAlign === 'left' ? ':' : '-';
+        const end = columnAlign === 'center' || columnAlign === 'right' ? ':' : '-';
+        return [`${start}${extendsDelimiters ? '-'.repeat(columnWidth - 2) : '-'}${end}`];
+    });
+
+    const lines = [printRow(rows[0]), delimiterRow, ...rows.slice(1).map(printRow)];
+    return doc.builders.join(
+        doc.builders.hardlineWithoutBreakParent,
+        lines.map((cells) => `| ${cells.join(' | ')} |`)
+    );
+}
+
 /** Replaces each table label in the document with the doc that `getTableDoc` returns for it. */
 function replaceTables(documentDoc, getTableDoc) {
     return doc.utils.mapDoc(documentDoc, (part) =>
         part.type === 'label' && part.label?.kind === TABLE_LABEL_KIND ? getTableDoc(part.label) : part
     );
+}
+
+/** Tells if a part of a table is compact, for an option value and the width of the table. */
+function isCompact(optionValue, isTooWide) {
+    return optionValue === 'always' || (optionValue === 'auto' && isTooWide);
 }
 
 /**
@@ -72,23 +131,29 @@ function replaceTables(documentDoc, getTableDoc) {
  */
 function chooseTableLayouts(documentDoc, options) {
     const maxWidth = options.markdownAlignedTableMaxWidth ?? options.printWidth;
-    const markedDoc = replaceTables(documentDoc, (table) => [
-        `${MARKER_START}${table.index}${MARKER_END}`,
-        table.alignedTable,
+    const markedDoc = replaceTables(documentDoc, ({ index, table }) => [
+        `${MARKER_START}${index}${MARKER_END}`,
+        printTable(table, ALIGNED_LAYOUT),
     ]);
     const { formatted } = doc.printer.printDocToString(markedDoc, options);
 
-    const compactTableIndexes = new Set();
+    const tooWideTableIndexes = new Set();
     for (const line of formatted.split('\n')) {
         const marker = MARKER_PATTERN.exec(line);
         if (marker && util.getStringWidth(line.replace(marker[0], '')) > maxWidth) {
-            compactTableIndexes.add(Number(marker[1]));
+            tooWideTableIndexes.add(Number(marker[1]));
         }
     }
 
-    return replaceTables(documentDoc, (table) =>
-        compactTableIndexes.has(table.index) ? table.compactTable : table.alignedTable
-    );
+    return replaceTables(documentDoc, ({ index, table }) => {
+        const isTooWide = tooWideTableIndexes.has(index);
+        const padsCells = !isCompact(options.markdownCompactTablesTextCells, isTooWide);
+        // Long delimiters align with padded cells only: "auto" shortens them when the cells have no padding.
+        return printTable(table, {
+            padsCells,
+            extendsDelimiters: !isCompact(options.markdownCompactTablesHeadingMarkers, isTooWide || !padsCells),
+        });
+    });
 }
 
 /** @type {import('prettier').Printer} */
@@ -96,20 +161,16 @@ const compactTablePrinter = {
     ...markdownPrinter,
     print(path, options, print, args) {
         const { node } = path;
-        if (!options.markdownCompactTables || (node.type === 'table' && isIgnoreComment(path.previous))) {
-            return markdownPrinter.print(path, options, print, args);
-        }
-
         if (node.type === 'table') {
-            const layouts = printTableLayouts(path, options, print, args);
-            if (!layouts) {
-                return markdownPrinter.print(path, options, print, args);
+            const table = readTable(path, options, print);
+            if (isIgnoreComment(path.previous)) {
+                return [doc.builders.breakParent, printTable(table, ALIGNED_LAYOUT)];
             }
             const index = tableCountByRoot.get(path.root) ?? 0;
             tableCountByRoot.set(path.root, index + 1);
             return [
                 doc.builders.breakParent,
-                doc.builders.label({ kind: TABLE_LABEL_KIND, index, ...layouts }, layouts.alignedTable),
+                doc.builders.label({ kind: TABLE_LABEL_KIND, index, table }, printTable(table, ALIGNED_LAYOUT)),
             ];
         }
 

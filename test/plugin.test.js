@@ -125,13 +125,62 @@ test('markdownAlignedTableMaxWidth 0 makes all tables compact', async () => {
     assert.equal(output, ['| Name | Role |', '| --- | --- |', '| Ada | Engineer |', ''].join('\n'));
 });
 
-test('markdownCompactTables false gives the output of Prettier without the plugin', async () => {
+test('markdownCompactTablesTextCells "always" removes the cell padding and the long delimiters of a table that fits', async () => {
+    const markdown = ['| Name | Role |', '|-|-|', '| Ada | Engineer |', ''].join('\n');
+
+    const output = await formatWithPlugin(markdown, { markdownCompactTablesTextCells: 'always' });
+
+    assert.equal(output, ['| Name | Role |', '| --- | --- |', '| Ada | Engineer |', ''].join('\n'));
+});
+
+test('markdownCompactTablesHeadingMarkers "never" keeps the long delimiters when the cells have no padding', async () => {
+    const markdown = ['| Name | Role |', '|-|-|', '| Ada | Engineer |', ''].join('\n');
+
+    const output = await formatWithPlugin(markdown, {
+        markdownCompactTablesTextCells: 'always',
+        markdownCompactTablesHeadingMarkers: 'never',
+    });
+
+    assert.equal(output, ['| Name | Role |', '| ---- | -------- |', '| Ada | Engineer |', ''].join('\n'));
+});
+
+test('markdownCompactTablesHeadingMarkers "always" shortens the delimiter row of a table that fits', async () => {
+    const markdown = ['| Name | Role |', '|-|-|', '| Ada | Engineer |', ''].join('\n');
+
+    const output = await formatWithPlugin(markdown, { markdownCompactTablesHeadingMarkers: 'always' });
+
+    assert.equal(output, ['| Name | Role     |', '| --- | --- |', '| Ada  | Engineer |', ''].join('\n'));
+});
+
+test('markdownCompactTablesTextCells and markdownCompactTablesHeadingMarkers "never" keep a wide table aligned', async () => {
     const markdown = ['| Key | Value |', '|-|-|', `| a | ${'v'.repeat(PRINT_WIDTH)} |`, ''].join('\n');
 
-    const output = await formatWithPlugin(markdown, { markdownCompactTables: false });
+    const output = await formatWithPlugin(markdown, {
+        markdownCompactTablesTextCells: 'never',
+        markdownCompactTablesHeadingMarkers: 'never',
+    });
 
     assert.equal(output, await formatWithoutPlugin(markdown));
 });
+
+for (const parser of ['markdown', 'mdx']) {
+    test(`${parser}: the tables are the same as those of Prettier with proseWrap "never"`, async () => {
+        const markdown = [
+            '| Left | Center | Right |',
+            '|:-|:-:|-:|',
+            '| a | b | c |',
+            '',
+            '| Left | Center | Right |',
+            '|:-|:-:|-:|',
+            `| a | ${'b'.repeat(PRINT_WIDTH)} | c |`,
+            '',
+        ].join('\n');
+
+        const output = await formatWithPlugin(markdown, { parser });
+
+        assert.equal(output, await formatWithoutPlugin(markdown, { parser, proseWrap: 'never' }));
+    });
+}
 
 test('code blocks keep their formatting in a file with compact tables', async () => {
     const markdown = [
@@ -167,12 +216,4 @@ test('in MDX, a prettier-plugin-compact-markdown-tables-ignore expression commen
     const output = await formatWithPlugin(markdown, { parser: 'mdx' });
 
     assert.equal(output, await formatWithoutPlugin(markdown, { parser: 'mdx' }));
-});
-
-test('the plugin formats MDX tables too', async () => {
-    const markdown = ['| Key | Value |', '|-|-|', `| a | ${'v'.repeat(PRINT_WIDTH)} |`, ''].join('\n');
-
-    const output = await formatWithPlugin(markdown, { parser: 'mdx' });
-
-    assert.equal(output.split('\n')[1], '| --- | --- |');
 });

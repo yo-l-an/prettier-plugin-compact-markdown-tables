@@ -7,6 +7,7 @@ A Prettier plugin for Markdown and MDX tables:
 
 Aligned columns make small tables easy to read. In a wide table, the alignment adds many spaces to each row, so the rows wrap in the editor, and a change to one cell changes all the rows of the diff. The compact layout prevents this.
 
+<!-- prettier-ignore -->
 ```md
 | Name  | Role     |
 | ----- | -------- |
@@ -23,8 +24,10 @@ The column alignment markers (`:--`, `:-:`, `--:`) stay in the compact layout.
 
 ## Installation
 
+The package is on GitHub. `semver:*` installs the latest version tag:
+
 ```sh
-npm install --save-dev prettier-plugin-compact-markdown-tables
+npm install --save-dev "github:yo-l-an/prettier-plugin-compact-markdown-tables#semver:*"
 ```
 
 ```js
@@ -38,31 +41,185 @@ Prettier 3 is necessary.
 
 ## Options
 
+The compact layout has two parts: the cells without padding, and the delimiter row with `---`. An option sets each part:
+
 | Option | Default | Description |
 | --- | --- | --- |
-| `markdownAlignedTableMaxWidth` | Same as `printWidth` | Maximum width of an aligned table. A wider table gets the compact layout. `0`: all tables get the compact layout. |
-| `markdownCompactTables` | `true` | `false` disables the plugin: all tables keep the aligned layout of Prettier. Use it to compare the two outputs, or to disable the plugin for some files with `overrides`. |
+| `markdownCompactTablesTextCells` | `"auto"` | Removes the padding that aligns the text cells. |
+| `markdownCompactTablesHeadingMarkers` | `"auto"` | Writes the delimiter row under the header with `---` in each column. |
+| `markdownAlignedTableMaxWidth` | Same as `printWidth` | Maximum width of an aligned table, for the `"auto"` values. `0`: all tables are too wide. |
+
+The values of the two first options:
+
+- `"auto"`: compact in the tables wider than `markdownAlignedTableMaxWidth`, aligned in the other tables. For `markdownCompactTablesHeadingMarkers`, `"auto"` also writes `---` when the cells have no padding: long delimiters align with padded cells only.
+- `"always"`: compact in all tables.
+- `"never"`: aligned in all tables. With `"never"` for the two options, all tables keep the aligned layout of Prettier, as without the plugin.
 
 ```js
 // prettier.config.js
 export default {
     plugins: ['prettier-plugin-compact-markdown-tables'],
+    markdownCompactTablesHeadingMarkers: 'always',
     markdownAlignedTableMaxWidth: 160,
-    overrides: [{ files: 'CHANGELOG.md', options: { markdownCompactTables: false } }],
+    overrides: [
+        {
+            files: 'CHANGELOG.md',
+            options: { markdownCompactTablesTextCells: 'never', markdownCompactTablesHeadingMarkers: 'never' },
+        },
+    ],
 };
 ```
 
 On the command line, the plugin must also be in `--plugin`, else Prettier does not know its options:
 
 ```sh
-prettier --plugin prettier-plugin-compact-markdown-tables --no-markdown-compact-tables --check "**/*.md"
+prettier --plugin prettier-plugin-compact-markdown-tables --markdown-compact-tables-text-cells never --check "**/*.md"
 ```
 
 The width of a table is the width of one row of the aligned table, plus the indentation of the table (in a list or a block quote). All the rows of an aligned table have the same width.
 
+## Combinations of the options
+
+These examples use `markdownAlignedTableMaxWidth: 30`: the first table (20 characters wide when aligned) fits, the second table (36 characters) is too wide. Each title gives the value of `markdownCompactTablesTextCells`, then the value of `markdownCompactTablesHeadingMarkers`.
+
+### `"auto"`, `"auto"` (default)
+
+<!-- prettier-ignore -->
+```md
+| Name  | Role     |
+| ----- | -------- |
+| Ada   | Engineer |
+| Grace | Admiral  |
+
+| Setting | Effect |
+| --- | --- |
+| printWidth | Maximum line length |
+| proseWrap | Wraps prose |
+```
+
+### `"auto"`, `"always"`
+
+<!-- prettier-ignore -->
+```md
+| Name  | Role     |
+| --- | --- |
+| Ada   | Engineer |
+| Grace | Admiral  |
+
+| Setting | Effect |
+| --- | --- |
+| printWidth | Maximum line length |
+| proseWrap | Wraps prose |
+```
+
+### `"auto"`, `"never"`
+
+<!-- prettier-ignore -->
+```md
+| Name  | Role     |
+| ----- | -------- |
+| Ada   | Engineer |
+| Grace | Admiral  |
+
+| Setting | Effect |
+| ---------- | ------------------- |
+| printWidth | Maximum line length |
+| proseWrap | Wraps prose |
+```
+
+### `"always"`, `"auto"`
+
+<!-- prettier-ignore -->
+```md
+| Name | Role |
+| --- | --- |
+| Ada | Engineer |
+| Grace | Admiral |
+
+| Setting | Effect |
+| --- | --- |
+| printWidth | Maximum line length |
+| proseWrap | Wraps prose |
+```
+
+### `"always"`, `"always"`
+
+<!-- prettier-ignore -->
+```md
+| Name | Role |
+| --- | --- |
+| Ada | Engineer |
+| Grace | Admiral |
+
+| Setting | Effect |
+| --- | --- |
+| printWidth | Maximum line length |
+| proseWrap | Wraps prose |
+```
+
+### `"always"`, `"never"`
+
+<!-- prettier-ignore -->
+```md
+| Name | Role |
+| ----- | -------- |
+| Ada | Engineer |
+| Grace | Admiral |
+
+| Setting | Effect |
+| ---------- | ------------------- |
+| printWidth | Maximum line length |
+| proseWrap | Wraps prose |
+```
+
+### `"never"`, `"auto"`
+
+<!-- prettier-ignore -->
+```md
+| Name  | Role     |
+| ----- | -------- |
+| Ada   | Engineer |
+| Grace | Admiral  |
+
+| Setting    | Effect              |
+| --- | --- |
+| printWidth | Maximum line length |
+| proseWrap  | Wraps prose         |
+```
+
+### `"never"`, `"always"`
+
+<!-- prettier-ignore -->
+```md
+| Name  | Role     |
+| --- | --- |
+| Ada   | Engineer |
+| Grace | Admiral  |
+
+| Setting    | Effect              |
+| --- | --- |
+| printWidth | Maximum line length |
+| proseWrap  | Wraps prose         |
+```
+
+### `"never"`, `"never"`
+
+<!-- prettier-ignore -->
+```md
+| Name  | Role     |
+| ----- | -------- |
+| Ada   | Engineer |
+| Grace | Admiral  |
+
+| Setting    | Effect              |
+| ---------- | ------------------- |
+| printWidth | Maximum line length |
+| proseWrap  | Wraps prose         |
+```
+
 ## Keep one table aligned
 
-Put this comment immediately before a table to keep its aligned layout, whatever its width:
+Put this comment immediately before a table to keep its aligned layout, whatever its width and the options:
 
 ```md
 <!-- prettier-plugin-compact-markdown-tables-ignore -->
@@ -77,9 +234,9 @@ Different from `<!-- prettier-ignore -->`, Prettier continues to format the tabl
 
 ## How it works
 
-Prettier already contains the two layouts. With `proseWrap: "never"`, it prints a table aligned when the table fits in `printWidth`, and compact when it does not. With the other `proseWrap` values, it always aligns tables.
+The plugin prints the tables with the rules of the Markdown printer of Prettier: the same text in the cells, the same column widths, the same alignment of the cells. Only the padding of the cells and the length of the delimiters change. The other nodes are printed by the Markdown printer of Prettier, with the options of your configuration.
 
-The plugin gets the two layouts of each table from the Markdown printer of Prettier, with `proseWrap: "never"` for the table nodes only. The paragraphs, lists and other nodes keep the `proseWrap` value of your configuration. Then the plugin prints the document one time with all tables aligned, to find the width of each table with its indentation, and keeps the aligned layout of the tables that are not too wide.
+To find the width of each table with its indentation, the plugin prints the document one time with all tables aligned. Then it prints each table with the layout that the options give for its width.
 
 ## Limits
 

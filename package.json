@@ -1,6 +1,6 @@
 {
     "name": "prettier-plugin-compact-markdown-tables",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Prettier plugin: Markdown tables wider than printWidth get the compact layout, narrower tables keep the aligned layout.",
     "keywords": [
         "prettier",
