@@ -40,7 +40,7 @@ Prettier 3 is necessary.
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `markdownAlignedTableMaxWidth` | `printWidth` | Maximum width of an aligned table. A wider table gets the compact layout. `0`: all tables get the compact layout. |
+| `markdownAlignedTableMaxWidth` | Same as `printWidth` | Maximum width of an aligned table. A wider table gets the compact layout. `0`: all tables get the compact layout. |
 | `markdownCompactTables` | `true` | `false` disables the plugin: all tables keep the aligned layout of Prettier. Use it to compare the two outputs, or to disable the plugin for some files with `overrides`. |
 
 ```js
@@ -59,6 +59,21 @@ prettier --plugin prettier-plugin-compact-markdown-tables --no-markdown-compact-
 ```
 
 The width of a table is the width of one row of the aligned table, plus the indentation of the table (in a list or a block quote). All the rows of an aligned table have the same width.
+
+## Keep one table aligned
+
+Put this comment immediately before a table to keep its aligned layout, whatever its width:
+
+```md
+<!-- prettier-plugin-compact-markdown-tables-ignore -->
+
+| Name | Description |
+| ---- | ----------- |
+```
+
+In MDX, the comment is `{/* prettier-plugin-compact-markdown-tables-ignore */}`. The comment has an effect on the next table only. Prettier puts an empty line between the comment and the table.
+
+Different from `<!-- prettier-ignore -->`, Prettier continues to format the table.
 
 ## How it works
 

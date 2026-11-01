@@ -149,6 +149,26 @@ test('code blocks keep their formatting in a file with compact tables', async ()
     assert.match(output, /^\| key \| value \|$/m);
 });
 
+test('a prettier-plugin-compact-markdown-tables-ignore comment keeps the next table aligned, and only that table', async () => {
+    const wideTable = buildTableWithRowWidth(PRINT_WIDTH + 10);
+    const markdown = `<!-- prettier-plugin-compact-markdown-tables-ignore -->\n${wideTable}\n${wideTable}`;
+
+    const [, ignoredTable, nextTable] = (await formatWithPlugin(markdown)).split('\n\n');
+
+    assert.equal(ignoredTable, (await formatWithoutPlugin(wideTable)).trimEnd());
+    assert.match(nextTable, /^\| key \| value \|$/m);
+});
+
+test('in MDX, a prettier-plugin-compact-markdown-tables-ignore expression comment keeps the next table aligned', async () => {
+    const wideTable = buildTableWithRowWidth(PRINT_WIDTH + 10);
+
+    const markdown = `{/* prettier-plugin-compact-markdown-tables-ignore */}\n\n${wideTable}`;
+
+    const output = await formatWithPlugin(markdown, { parser: 'mdx' });
+
+    assert.equal(output, await formatWithoutPlugin(markdown, { parser: 'mdx' }));
+});
+
 test('the plugin formats MDX tables too', async () => {
     const markdown = ['| Key | Value |', '|-|-|', `| a | ${'v'.repeat(PRINT_WIDTH)} |`, ''].join('\n');
 

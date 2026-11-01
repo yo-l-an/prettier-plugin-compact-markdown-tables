@@ -9,6 +9,9 @@ const MARKER_START = '\uE000';
 const MARKER_END = '\uE001';
 const MARKER_PATTERN = new RegExp(`${MARKER_START}(\\d+)${MARKER_END}`);
 
+const IGNORE_COMMENT_TEXT = 'prettier-plugin-compact-markdown-tables-ignore';
+const IGNORE_HTML_COMMENT_PATTERN = new RegExp(`^<!--\\s*${IGNORE_COMMENT_TEXT}\\s*-->$`);
+
 /** Number of tables printed in each document, keyed by the root node. */
 const tableCountByRoot = new WeakMap();
 
@@ -42,6 +45,18 @@ function printTableLayouts(path, options, print, args) {
         return undefined;
     }
     return { alignedTable: layouts.flatContents, compactTable: layouts.breakContents };
+}
+
+/**
+ * Tells if the node is an ignore comment: `<!-- prettier-plugin-compact-markdown-tables-ignore -->`,
+ * or `{/* prettier-plugin-compact-markdown-tables-ignore *\/}` in MDX, which the parser puts in a paragraph.
+ */
+function isIgnoreComment(node) {
+    if (node?.type === 'html') {
+        return IGNORE_HTML_COMMENT_PATTERN.test(node.value);
+    }
+    const comment = node?.type === 'paragraph' && node.children.length === 1 ? node.children[0] : node;
+    return comment?.type === 'esComment' && comment.value.trim() === IGNORE_COMMENT_TEXT;
 }
 
 /** Replaces each table label in the document with the doc that `getTableDoc` returns for it. */
@@ -80,11 +95,11 @@ function chooseTableLayouts(documentDoc, options) {
 const compactTablePrinter = {
     ...markdownPrinter,
     print(path, options, print, args) {
-        if (!options.markdownCompactTables) {
+        const { node } = path;
+        if (!options.markdownCompactTables || (node.type === 'table' && isIgnoreComment(path.previous))) {
             return markdownPrinter.print(path, options, print, args);
         }
 
-        const { node } = path;
         if (node.type === 'table') {
             const layouts = printTableLayouts(path, options, print, args);
             if (!layouts) {
