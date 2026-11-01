@@ -1,0 +1,30 @@
+{
+    "name": "prettier-plugin-compact-markdown-tables",
+    "version": "1.0.0",
+    "description": "Prettier plugin: Markdown tables wider than printWidth get the compact layout, narrower tables keep the aligned layout.",
+    "keywords": [
+        "prettier",
+        "prettier-plugin",
+        "markdown",
+        "mdx",
+        "table"
+    ],
+    "type": "module",
+    "exports": "./index.js",
+    "main": "./index.js",
+    "files": [
+        "index.js"
+    ],
+    "engines": {
+        "node": ">=18"
+    },
+    "scripts": {
+        "test": "node --test"
+    },
+    "peerDependencies": {
+        "prettier": "^3.0.0"
+    },
+    "devDependencies": {
+        "prettier": "3.9.9"
+    }
+}
