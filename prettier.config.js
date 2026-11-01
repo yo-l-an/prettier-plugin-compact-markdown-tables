@@ -5,5 +5,6 @@ export default {
     trailingComma: 'es5',
     endOfLine: 'lf',
     plugins: ['./index.js'],
+    markdownAlignedTableMaxWidth: 80,
     markdownCompactTablesHeadingMarkers: 'always',
 };
